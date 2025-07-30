@@ -10,10 +10,9 @@ module.exports = {
     const chatId = String(message.chat.id);
     const moderatorId = String(message.from.id);
 
-    // Improved admin check with fallback
+    // ✅ Admin check with fallback
     try {
       const member = await ctx.getChatMember(moderatorId);
-
       if (!["creator", "administrator"].includes(member.status)) {
         if (chatId !== moderatorId) {
           return ctx.reply("🚫 You must be an admin to use this command.");
@@ -25,16 +24,62 @@ module.exports = {
       );
     }
 
-    if (!message.reply_to_message) {
-      return ctx.reply("❗ You must reply to the user you want to warn.");
+    let userId;
+    let warnedName;
+    let reason;
+
+    // 🧷 OPTION 1: Reply to user
+    if (message.reply_to_message) {
+      const targetUser = message.reply_to_message.from;
+      userId = String(targetUser.id);
+      warnedName = targetUser.first_name;
+      reason =
+        message.text.split(" ").slice(1).join(" ").trim() ||
+        "No reason provided";
+    } else {
+      // 🧷 OPTION 2: ID, @username, or link
+      const args = message.text.split(" ").slice(1);
+      if (args.length === 0) {
+        return ctx.reply(
+          "❗ Usage:\n- Reply to a user with /warn [reason]\n- /warn <user_id | @username | link> [reason]"
+        );
+      }
+
+      const input = args[0];
+      reason = args.slice(1).join(" ").trim() || "No reason provided";
+
+      if (/^@?[a-zA-Z0-9_]{5,}$/.test(input)) {
+        // Username
+        const username = input.replace("@", "");
+        try {
+          const user = await ctx.telegram.getChat(`@${username}`);
+          userId = String(user.id);
+          warnedName = `@${username}`;
+        } catch (err) {
+          return ctx.reply("❌ Could not find that username.");
+        }
+      } else if (/^https:\/\/t\.me\/[a-zA-Z0-9_]{5,}$/.test(input)) {
+        // Link
+        const username = input.split("/").pop();
+        try {
+          const user = await ctx.telegram.getChat(`@${username}`);
+          userId = String(user.id);
+          warnedName = `@${username}`;
+        } catch (err) {
+          return ctx.reply("❌ Could not resolve user from link.");
+        }
+      } else if (/^\d{5,}$/.test(input)) {
+        // User ID
+        userId = input;
+        warnedName = `User ID: ${userId}`;
+      } else {
+        return ctx.reply(
+          "❌ Invalid user identifier. Use a reply, @username, ID, or t.me link."
+        );
+      }
     }
 
-    const warnedUser = message.reply_to_message.from;
-    const userId = String(warnedUser.id);
-
-    const input = message.text.split(" ").slice(1).join(" ").trim();
-    const reason = input || "No reason provided";
-
+    // Save to MongoDB
     const newWarning = new Warning({
       userId,
       chatId,
@@ -47,7 +92,8 @@ module.exports = {
     const warningCount = await Warning.countDocuments({ userId, chatId });
 
     await ctx.reply(
-      `⚠️ ${warnedUser.first_name} has been warned.\nReason: ${reason}\nTotal Warnings: ${warningCount}`
+      `⚠️ Warned ${warnedName} (ID: \`${userId}\`)\nReason: ${reason}\nTotal Warnings: ${warningCount}`,
+      { parse_mode: "Markdown" }
     );
   },
 };
