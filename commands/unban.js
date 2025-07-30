@@ -8,17 +8,19 @@ module.exports = {
     const chatId = String(message.chat.id);
     const adminId = String(message.from.id);
 
-    // Admin check with dev bypass
+    // Improved admin check with fallback
     try {
-      const admin = await ctx.telegram.getChatMember(chatId, adminId);
-      const allowed = ["creator", "administrator"];
-      if (!allowed.includes(admin.status)) {
-        if (adminId !== chatId) {
+      const member = await ctx.getChatMember(moderatorId);
+
+      if (!["creator", "administrator"].includes(member.status)) {
+        if (chatId !== moderatorId) {
           return ctx.reply("🚫 You must be an admin to use this command.");
         }
       }
     } catch (err) {
-      console.warn("⚠️ Skipping admin check due to error:", err.message);
+      console.warn(
+        "⚠️ Could not confirm admin status, allowing action for dev mode."
+      );
     }
 
     const args = message.text.split(" ").slice(1);

@@ -10,18 +10,19 @@ module.exports = {
     const chatId = String(message.chat.id);
     const adminId = String(message.from.id);
 
-    // Try-catch for admin check
+    // Improved admin check with fallback
     try {
-      const admin = await ctx.telegram.getChatMember(chatId, adminId);
-      const allowed = ["creator", "administrator"];
+      const member = await ctx.getChatMember(moderatorId);
 
-      if (!allowed.includes(admin.status)) {
-        if (adminId !== chatId) {
+      if (!["creator", "administrator"].includes(member.status)) {
+        if (chatId !== moderatorId) {
           return ctx.reply("🚫 You must be an admin to use this command.");
         }
       }
     } catch (err) {
-      console.warn("⚠️ Skipping admin check due to error:", err.message);
+      console.warn(
+        "⚠️ Could not confirm admin status, allowing action for dev mode."
+      );
     }
 
     if (!message.reply_to_message) {
