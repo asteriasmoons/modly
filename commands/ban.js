@@ -38,11 +38,11 @@ module.exports = {
     } else {
       // 🧷 OPTION 2: ID, @username, or link
       const args = message.text.split(" ").slice(1);
-      if (args.length === 0) {
-        return ctx.reply(
-          "❗ Usage:\n- Reply to a user with /ban [reason]\n- /ban <user_id | @username | link> [reason]"
-        );
-      }
+	  if (args.length === 0) {
+      return ctx.reply(
+        "❗ Usage:\n/ban <user_id | @username | t.me link> [reason]"
+      );
+    }
 
       const input = args[0];
       reason = args.slice(1).join(" ").trim() || "No reason provided";
