@@ -1,0 +1,25 @@
+{
+  "name": "modlybot",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/asteriasmoons/modly.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/asteriasmoons/modly/issues"
+  },
+  "homepage": "https://github.com/asteriasmoons/modly#readme",
+  "dependencies": {
+    "dotenv": "^17.2.1",
+    "mongoose": "^8.17.0",
+    "telegraf": "^4.16.3"
+  }
+}
