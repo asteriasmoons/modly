@@ -1,4 +1,5 @@
 // commands/ban.js
+
 module.exports = {
   name: "ban",
   description:
@@ -46,26 +47,27 @@ module.exports = {
       const input = args[0];
       reason = args.slice(1).join(" ").trim() || "No reason provided";
 
-      // Extract ID or username
       if (/^@?[a-zA-Z0-9_]{5,}$/.test(input)) {
-        // Username
+        // @username — check if they're in the group
         const username = input.replace("@", "");
         try {
-          const user = await ctx.telegram.getChat(`@${username}`);
-          userId = user.id;
+          const member = await ctx.getChatMember(username);
+          userId = String(member.user.id);
           targetLabel = `@${username} (ID: \`${userId}\`)`;
         } catch (err) {
-          return ctx.reply("❌ Could not find that username.");
+          return ctx.reply("❌ Could not find that username in this group.");
         }
       } else if (/^https:\/\/t\.me\/[a-zA-Z0-9_]{5,}$/.test(input)) {
         // t.me link
         const username = input.split("/").pop();
         try {
-          const user = await ctx.telegram.getChat(`@${username}`);
-          userId = user.id;
+          const member = await ctx.getChatMember(username);
+          userId = String(member.user.id);
           targetLabel = `@${username} (ID: \`${userId}\`)`;
         } catch (err) {
-          return ctx.reply("❌ Could not resolve user from link.");
+          return ctx.reply(
+            "❌ Could not resolve user from link — make sure they’re in the group."
+          );
         }
       } else if (/^\d{5,}$/.test(input)) {
         // Raw user ID
