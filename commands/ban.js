@@ -1,86 +1,72 @@
 // commands/ban.js
-
 module.exports = {
   name: "ban",
-  description: "Bans a user from the group by user ID, username, or link.",
+  description: "Bans a user by @mention or numeric user ID.",
   async execute(ctx) {
     const message = ctx.message;
-    const chatId = String(message.chat.id);
-    const moderatorId = String(message.from.id);
+    const chatId = message.chat.id;
+    const moderatorId = message.from.id;
 
-    // Admin check with fallback
+    // Admin check with fallback for dev
     try {
       const member = await ctx.getChatMember(chatId, moderatorId);
       if (!["creator", "administrator"].includes(member.status)) {
-        if (chatId !== moderatorId) {
-          return ctx.reply("🚫 You must be an admin to use this command.");
-        }
+        return ctx.reply("🚫 You must be an admin to use this command.");
       }
-    } catch (err) {
-      console.warn(
-        "⚠️ Could not confirm admin status, allowing action for dev mode."
-      );
-    }
+    } catch (err) {}
 
     const args = message.text.split(" ").slice(1);
     if (args.length === 0) {
       return ctx.reply(
-        "❗ Usage:\n/ban <user_id | @username | t.me link> [reason]"
+        "❗ Usage:\n/ban @username [reason]\n/ban <user_id> [reason]"
       );
     }
 
-    const input = args[0].trim();
-    const reason = args.slice(1).join(" ").trim() || "No reason provided";
-    let userId;
-    let targetLabel;
+    let userId = null;
+    let targetLabel = null;
+    let reason = args.slice(1).join(" ").trim() || "No reason provided";
 
-    // Block banning the group username
-    const groupUsername = ctx.chat.username
-      ? ctx.chat.username.toLowerCase()
-      : null;
+    // 1. Check for a mention entity
+    if (message.entities) {
+      const mentionEntity = message.entities.find(
+        (e) =>
+          (e.type === "text_mention" || e.type === "mention") &&
+          e.offset === message.text.indexOf(args[0])
+      );
+      if (
+        mentionEntity &&
+        mentionEntity.type === "text_mention" &&
+        mentionEntity.user
+      ) {
+        userId = mentionEntity.user.id;
+        targetLabel = `${mentionEntity.user.first_name} (ID: \`${userId}\`)`;
+      } else if (mentionEntity && mentionEntity.type === "mention") {
+        // We have @username, now resolve to user ID from group members
+        const username = args[0].replace("@", "");
+        try {
+          const member = await ctx.getChatMember(chatId, username);
+          userId = member.user.id;
+          targetLabel = `@${username} (ID: \`${userId}\`)`;
+        } catch {
+          return ctx.reply("❌ Username not found in this group.");
+        }
+      }
+    }
 
-    if (/^@?[a-zA-Z0-9_]{5,}$/.test(input)) {
-      // @username
-      const username = input.replace("@", "");
-      if (groupUsername && username.toLowerCase() === groupUsername) {
-        return ctx.reply("❌ You cannot ban the group username.");
-      }
+    // 2. If not a mention, try to parse as a user ID
+    if (!userId && /^\d{5,}$/.test(args[0])) {
+      userId = args[0];
       try {
-        const member = await ctx.getChatMember(chatId, username);
-        userId = String(member.user.id);
-        targetLabel = `@${username} (ID: \`${userId}\`)`;
-      } catch (err) {
-        console.error("❌ getChatMember (username) failed:", err);
-        return ctx.reply("❌ Username not found in this group.");
-      }
-    } else if (/^https:\/\/t\.me\/[a-zA-Z0-9_]{5,}$/.test(input)) {
-      const username = input.split("/").pop();
-      if (groupUsername && username.toLowerCase() === groupUsername) {
-        return ctx.reply("❌ You cannot ban the group username.");
-      }
-      try {
-        const member = await ctx.getChatMember(chatId, username);
-        userId = String(member.user.id);
-        targetLabel = `@${username} (ID: \`${userId}\`)`;
-      } catch (err) {
-        console.error("❌ getChatMember (link) failed:", err);
-        return ctx.reply("❌ User from link not found in this group.");
-      }
-    } else if (/^-?\d{5,}$/.test(input)) {
-      if (input === chatId || input === String(chatId)) {
-        return ctx.reply("❌ That's the group ID, not a user.");
-      }
-      try {
-        const member = await ctx.getChatMember(chatId, input);
-        userId = String(member.user.id);
+        const member = await ctx.getChatMember(chatId, userId);
         targetLabel = `${member.user.first_name} (ID: \`${userId}\`)`;
-      } catch (err) {
-        console.error("❌ getChatMember (user ID) failed:", err);
+      } catch {
         return ctx.reply("❌ User ID not found in this group.");
       }
-    } else {
+    }
+
+    if (!userId) {
       return ctx.reply(
-        "❌ Invalid input. Use a user ID, @username, or t.me link."
+        "❌ Could not find user. Tag them or use their user ID."
       );
     }
 
@@ -90,7 +76,6 @@ module.exports = {
         parse_mode: "Markdown",
       });
     } catch (err) {
-      console.error("❌ Failed to ban user:", err);
       await ctx.reply("❌ Failed to ban user. I may not have permission.");
     }
   },
