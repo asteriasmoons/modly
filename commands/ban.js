@@ -2,13 +2,13 @@
 
 module.exports = {
   name: "ban",
-  description: "Bans a user from the group by user ID, username, or link.",
+  description: "Bans a user from the group by user ID, username, or t.me link.",
   async execute(ctx) {
     const message = ctx.message;
     const chatId = String(message.chat.id);
     const moderatorId = String(message.from.id);
 
-    // ✅ Admin check with fallback
+    // Admin check with fallback
     try {
       const member = await ctx.getChatMember(chatId, moderatorId);
       if (!["creator", "administrator"].includes(member.status)) {
@@ -22,7 +22,7 @@ module.exports = {
       );
     }
 
-    // 🧷 Get target from ID, username, or t.me link
+    // Get args
     const args = message.text.split(" ").slice(1);
     if (args.length === 0) {
       return ctx.reply(
@@ -30,14 +30,23 @@ module.exports = {
       );
     }
 
-    const input = args[0];
+    const input = args[0].trim();
     const reason = args.slice(1).join(" ").trim() || "No reason provided";
+
+    // Don't allow banning the group/chat itself
+    if (
+      input === chatId ||
+      input === String(chatId) ||
+      input === String(Number(chatId))
+    ) {
+      return ctx.reply("❌ You cannot ban the chat or group itself.");
+    }
 
     let userId;
     let targetLabel;
 
+    // By username
     if (/^@?[a-zA-Z0-9_]{5,}$/.test(input)) {
-      // @username
       const username = input.replace("@", "");
       try {
         const member = await ctx.getChatMember(chatId, username);
@@ -45,10 +54,11 @@ module.exports = {
         targetLabel = `@${username} (ID: \`${userId}\`)`;
       } catch (err) {
         console.error("❌ getChatMember (username) failed:", err);
-        return ctx.reply("❌ Could not find that username in this group.");
+        return ctx.reply("❌ Username not found in this group.");
       }
-    } else if (/^https:\/\/t\.me\/[a-zA-Z0-9_]{5,}$/.test(input)) {
-      // t.me link
+    }
+    // By t.me link
+    else if (/^https:\/\/t\.me\/[a-zA-Z0-9_]{5,}$/.test(input)) {
       const username = input.split("/").pop();
       try {
         const member = await ctx.getChatMember(chatId, username);
@@ -56,33 +66,38 @@ module.exports = {
         targetLabel = `@${username} (ID: \`${userId}\`)`;
       } catch (err) {
         console.error("❌ getChatMember (link) failed:", err);
-        return ctx.reply(
-          "❌ Could not resolve user from link — make sure they’re in the group."
-        );
+        return ctx.reply("❌ User from link not found in this group.");
       }
-    } else if (/^-?\d{5,}$/.test(input)) {
-      // Raw user ID — validate it’s a member
-      userId = input;
-
-      if (userId === chatId) {
-        return ctx.reply("❌ You cannot ban the chat or group ID.");
+    }
+    // By raw user ID
+    else if (/^-?\d{5,}$/.test(input)) {
+      if (input === chatId || input === String(chatId)) {
+        return ctx.reply("❌ That's the group ID, not a user.");
       }
-
       try {
-        const member = await ctx.getChatMember(chatId, userId);
+        const member = await ctx.getChatMember(chatId, input);
         userId = String(member.user.id);
         targetLabel = `${member.user.first_name} (ID: \`${userId}\`)`;
       } catch (err) {
         console.error("❌ getChatMember (user ID) failed:", err);
-        return ctx.reply("❌ That ID is not a valid user in this group.");
+        return ctx.reply("❌ User ID not found in this group.");
       }
     } else {
       return ctx.reply(
-        "❌ Invalid user identifier. Use a user ID, @username, or t.me link."
+        "❌ Invalid input. Use a user ID, @username, or t.me link."
       );
     }
 
-    // 🔨 Perform ban
+    // Final debug print for testing (remove later!)
+    console.log({
+      chatId,
+      input,
+      userId,
+      targetLabel,
+      reason,
+    });
+
+    // Ban user
     try {
       await ctx.banChatMember(userId);
       await ctx.reply(`🔨 Banned ${targetLabel}\nReason: ${reason}`, {
